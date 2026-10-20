@@ -27,6 +27,21 @@ Include the output of `./install.sh --check`, which reports what the installer f
 
 ---
 
+### A note on `build-tarball.sh`
+
+That script is here for provenance, not for use. It rebuilds
+`viper-workshop-extras.tar.gz` by extracting `/opt/workshop` from a **built** workshop
+Docker image, because the flows, the notebooks, the Node-RED palette and the PRONOM
+reference CSV are all generated during that image's build and do not exist as source
+files anywhere.
+
+So cloning this repository is not enough to run it: you also need the workshop image,
+which is not published. If you want to rebuild the payload, ask
+[Darren](https://github.com/darrendignam). **If you just want to use the workshop
+material, ignore this file entirely** and follow the install instructions below.
+
+---
+
 ## What this adds
 
 Adds the two things from the iPRES 2026 workshop that are **not** part of ViPER itself:
@@ -166,10 +181,68 @@ the tools rather than guess, and to say when it does not know. You can read that
 - **The Arlington PDF Model Checker** has a desktop icon in ViPER but no command-line
   version, so the one step of flow 3 that uses it reports the tool as unavailable.
   Everything else is unaffected.
-- **fido's signatures are older here.** ViPER ships PRONOM v109; the workshop machines
-  were on v125. Most files identify identically, but the newest formats will not be
-  recognised, JPEG 2000 part 15 (`fmt/1964`) among them. `fido -sigs update` currently
-  reports v109 as up to date, so there is no fix from inside the machine today.
+- **fido's signatures are older here, and this one is worth fixing.** See the next
+  section.
+
+## Updating fido's PRONOM signatures
+
+ViPER ships fido with **PRONOM v109**. The workshop machines were on **v125**, sixteen
+releases newer. Most everyday formats identify identically either way, but recent ones
+are simply absent from v109, so fido reports them as unidentified. JPEG 2000 part 15
+(`fmt/1964`) is the one you will hit first, because the teaching corpus includes it.
+
+Check what you have:
+
+```bash
+dp-signatures
+```
+
+The obvious fix does not work:
+
+```bash
+fido -sigs update
+Your signature files are up to date, current version is v109
+```
+
+That is not fido being wrong. Its default update site stopped publishing new releases,
+so it correctly reports that it has the newest version *that site offers*. The OPF runs
+a replacement service, and pointing fido at it makes the update work:
+
+```bash
+# Ask fido which Python it runs under, then ask that Python where fido lives.
+# Going via the shebang matters: fido is not always installed into the system
+# Python, so `python3 -c "import fido"` can fail even though fido works fine.
+FIDO_PY="$(head -1 "$(command -v fido)" | sed 's|^#!||' | awk '{print $1}')"
+CONF="$("$FIDO_PY" -c 'import os, fido; print(os.path.join(os.path.dirname(fido.__file__), "conf"))')"
+
+# point it at the OPF signature service instead of the stale default
+sudo sed -i 's|<updateSite>.*</updateSite>|<updateSite>https://fidosigs.opf-labs.org</updateSite>|' "$CONF/versions.xml"
+
+# now the update finds something
+sudo fido -sigs update
+fido -v
+```
+
+Run on a stock ViPER that gives:
+
+```
+before:  FIDO v1.6.1 (formats-v109.xml, container-signature-20200121.xml, ...)
+         Updated signatures v125 are available, current version is v109
+         Updating signature file to 125.
+after:   FIDO v1.6.1 (formats-v125.xml, container-signature-20200121.xml, ...)
+```
+
+Note the container signature does not move. fido freezes that deliberately, so it can
+be current on the format list and years behind on container formats at the same time.
+`dp-signatures` reports both, separately, for exactly that reason.
+
+`fido -v` should then name `formats-v125.xml` or newer. Run `dp-signatures` again to
+confirm, and to see how fido now compares with Siegfried and DROID.
+
+This only affects fido. Siegfried installs with a current signature already, and DROID
+updates itself through its own GUI, which is why the three disagree out of the box.
+**That disagreement is itself one of the workshop's exercises**: when tools differ, check
+whether they are reading the same PRONOM release before concluding one of them is wrong.
 
 ## If something goes wrong
 

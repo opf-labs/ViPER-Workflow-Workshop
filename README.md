@@ -8,6 +8,13 @@ Lifecycle* (Copenhagen). They ran on a Docker image built on top of ViPER, so th
 not present in the ViPER OVA or QCOW2 downloads. This repository packages them so you
 can add them to your own machine.
 
+## Licence
+
+[Apache License 2.0](LICENSE). Use it anywhere, including commercially, with no
+obligation to share changes back. It comes with **no warranty of any kind**: these
+scripts modify the machine you run them on, so take a snapshot first and satisfy
+yourself that they do what you want.
+
 **Something not working?** Please
 [open an issue](https://github.com/opf-labs/ViPER-Workflow-Workshop/issues/new).
 Include the output of `./install.sh --check`, which reports what the installer found.

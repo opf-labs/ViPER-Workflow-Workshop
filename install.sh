@@ -43,6 +43,7 @@ NODE_MAJOR=22
 # The version demonstrated at the workshop. Pinned so participants get what they saw.
 OPENCODE_VERSION=1.18.31
 OPENCODE_HOME=/opt/opencode
+JUPYTER_HOME=/opt/jupyter
 SIEGFRIED_VERSION=1.11.7
 
 CHECK_ONLY=false
@@ -270,6 +271,49 @@ if ! ${MINIMAL}; then
     fi
 fi
 
+# --------------------------------------------------------------- jupyterlab
+
+# ViPER has no JupyterLab, so the Notebooks launcher reports "not installed in this
+# image" and stops. Installed into its own virtualenv rather than the system Python:
+# Ubuntu 26.04 marks the system interpreter externally managed (PEP 668), so a plain
+# pip install refuses, and --break-system-packages would put workshop packages in the
+# same place as ViPER's own tooling.
+#
+# tornado is pinned and has to be. 6.5 added a symlink check to its static file handler
+# that rejects JupyterLab's own symlinked assets, and the Lab UI loads to a blank page
+# with no error anywhere. nbconvert still works, so automated checks pass. Found from a
+# live desktop on 2026-09-15 after days of green builds.
+if ! ${MINIMAL}; then
+    say "JupyterLab, for the notebook versions of the exercises"
+    if command -v jupyter >/dev/null 2>&1; then
+        info "jupyter         already installed"
+    elif ${CHECK_ONLY}; then
+        info "would create a virtualenv at ${JUPYTER_HOME} with jupyterlab, pandas, tornado 6.4.2"
+    else
+        # Test ensurepip, NOT venv. On Ubuntu the venv module always imports, while
+        # ensurepip ships separately in python3-venv, so checking `import venv` passes
+        # and `python3 -m venv` then fails with "Failing command: .../bin/python3".
+        if ! python3 -c 'import ensurepip' 2>/dev/null; then
+            info "venv support    installing python3-venv"
+            sudo apt-get update -qq
+            sudo apt-get install -y python3-venv
+        fi
+        sudo mkdir -p "${JUPYTER_HOME}"
+        if sudo python3 -m venv "${JUPYTER_HOME}" \
+           && sudo "${JUPYTER_HOME}/bin/pip" install --quiet --no-cache-dir \
+                jupyterlab pandas "tornado==6.4.2"; then
+            for b in "${JUPYTER_HOME}"/bin/jupyter*; do
+                [ -x "${b}" ] && sudo ln -sfn "${b}" "/usr/local/bin/$(basename "${b}")"
+            done
+            ver="$(sudo "${JUPYTER_HOME}/bin/python" -c 'import tornado,jupyterlab; print("jupyterlab", jupyterlab.__version__, "tornado", tornado.version)' 2>/dev/null)"
+            info "jupyter         ${ver:-installed}"
+        else
+            warn "JupyterLab could not be installed. Everything else is unaffected;"
+            warn "only the ViPER Notebooks launcher will be missing."
+        fi
+    fi
+fi
+
 # ----------------------------------------------------------------- payload
 
 say "Installing the workshop files to ${PREFIX}"
@@ -399,6 +443,26 @@ fi
 
 # --------------------------------------------------------------- desktop
 
+say "Launcher icons"
+# The .desktop files reference icons by bare name (Icon=node-red), so the PNGs have to
+# be installed where the icon theme looks or every launcher falls back to a blank page
+# icon. The images ship in the payload; the Docker image symlinks them into
+# /usr/share/icons and this does the same.
+if ${CHECK_ONLY}; then
+    info "would install $(ls "${PAYLOAD_DIR}/opt/workshop/icons"/*.png 2>/dev/null | wc -l) icons to /usr/share/icons"
+else
+    n=0
+    for icon in "${PREFIX}"/icons/*.png; do
+        [ -f "${icon}" ] || continue
+        sudo install -m 0644 "${icon}" "/usr/share/icons/$(basename "${icon}")"
+        n=$((n+1))
+    done
+    # Without this MATE keeps serving the cached miss and the icons stay blank until
+    # the next login, which reads as "the installer did not work".
+    sudo gtk-update-icon-cache -f -t /usr/share/icons/hicolor >/dev/null 2>&1 || true
+    info "installed       ${n} icons to /usr/share/icons"
+fi
+
 say "Desktop launchers"
 if ${CHECK_ONLY}; then
     info "would install .desktop files for Workflows, Notebooks and the Assistant"
@@ -457,8 +521,9 @@ cat <<EOF
 
       echo 'export OPENROUTER_API_KEY=sk-or-...' >> ~/.profile
 
-  then log out and back in. A few pounds of credit is far more than a day's use: the
-  default model costs roughly two cents for a full set of test questions.
+  then log out and back in. OpenRouter bills in US dollars, and a few dollars of
+  credit is far more than a day's use: the default model cost about two cents for a
+  full set of test questions.
 
   If Node-RED is not responding:
 

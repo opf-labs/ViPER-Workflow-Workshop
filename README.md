@@ -107,7 +107,9 @@ from the workshop:
 **The teaching corpus** is on your desktop at `workshop-corpus`. Start with its
 `README.txt`. The flows are already pointed at it, so they run as soon as you open them.
 
-**The notebooks** are the same exercises as Python, via the **ViPER Notebooks** launcher.
+**The notebooks** are the same exercises written as Python, via the **ViPER Notebooks**
+launcher. JupyterLab is not part of ViPER, so the installer adds it in its own
+virtualenv at `/opt/jupyter`, leaving ViPER's own Python untouched.
 
 **The command line** works too:
 
@@ -125,8 +127,8 @@ for many different models. It needs a key before it will start.
 1. Make an account at <https://openrouter.ai/> and create a key at
    <https://openrouter.ai/keys>
 2. Add a small amount of credit. This is genuinely cheap: the default model cost about
-   **two cents** for a full set of test questions during development. A few pounds will
-   outlast your curiosity.
+   **two cents** for a full set of test questions during development. OpenRouter bills
+   in US dollars, and a few dollars will outlast your curiosity.
 3. Put the key in your shell profile:
 
    ```bash
